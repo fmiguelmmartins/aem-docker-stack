@@ -1,0 +1,48 @@
+version: "3"
+services:
+  aem-base:
+    image: aem-base
+    container_name: aem-base
+    build:
+      context: ./aem-base
+  aem-author:
+    image: aem-author
+    container_name: aem-author
+    build:
+      context: ./author
+    ports:
+      - "4502:4502"
+    depends_on:
+      - aem-base
+  aem-publish:
+    image: aem-publish
+    container_name: aem-publish
+    build:
+      context: ./publish
+    ports:
+      - "4503:4503"
+    depends_on:
+      - aem-author
+  dispatcher:
+    image: aem-dispatcher:latest
+    container_name: aem-dispatcher
+    build:
+      context: ./dispatcher
+    env_file:
+      - ./dispatcher/scripts/.env_dispatcher.sh
+    # Can change these paths to match project specifics (e.g. /project_folder/dispatcher/httpd/conf)
+    volumes:
+      - ./dispatcher/ams/2.6/etc/httpd/conf:/etc/httpd/conf:ro
+      - ./dispatcher/ams/2.6/etc/httpd/conf.d:/etc/httpd/conf.d:ro
+      - ./dispatcher/ams/2.6/etc/httpd/conf.dispatcher.d:/etc/httpd/conf.dispatcher.d:ro
+      - ./dispatcher/ams/2.6/etc/httpd/conf.modules.d:/etc/httpd/conf.modules.d:ro
+      - ./dispatcher/mnt/author_docroot:/mnt/var/www/author:rw
+      - ./dispatcher/mnt/publish_docroot:/mnt/var/www/html:rw
+      - ./dispatcher/mnt/log:/var/log/httpd:rw
+    tmpfs:
+      - /tmp
+    ports:
+      - 80:8080
+      - 443:8443
+    depends_on:
+      - aem-publish

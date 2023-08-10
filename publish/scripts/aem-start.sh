@@ -1,0 +1,3 @@
+#!/bin/bash
+echo java $AEM_JVM_OPTS -jar $AEM_JARFILE $AEM_RUNMODE,$AEM_ENV -p $AEM_PORT
+exec java $AEM_JVM_OPTS -jar $AEM_JARFILE $AEM_RUNMODE,$AEM_ENV -p $AEM_PORT

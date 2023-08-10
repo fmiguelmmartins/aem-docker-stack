@@ -1,0 +1,89 @@
+pipeline {
+    agent {
+        node {
+            label 'agent-docker-slave'
+        }
+    }
+
+    environment {
+        CICD_CREDENTIALS = credentials('c3ecb8e2-c747-4686-bd51-fadc9ceb815a')
+        CICD_URL = "${CICD_HOST}"
+    }
+
+    stages {
+        stage ('Verify Tooling') {
+            steps {
+                sh '''
+                echo 'Verifying tooling'
+                docker info
+                docker version
+                docker compose version
+                jq --version
+                git --version
+                curl --version
+                '''
+            }
+        }   
+
+        stage ('Authentication') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'c3ecb8e2-c747-4686-bd51-fadc9ceb815a', usernameVariable: 'CI_USER', passwordVariable: 'CI_PASS')]) {
+                        sh "echo ${CI_PASS} | docker login -u ${CI_USER} --password-stdin ${CICD_URL}"
+                    }
+                }
+            }
+        }    
+
+        stage ('Install Dependencies') {
+            steps {
+                sh '''
+                chmod +x ./scripts-pipeline/dependencies.sh
+                ./scripts-pipeline/dependencies.sh /aem65 ./aem-base
+                ./scripts-pipeline/dependencies.sh /aem-docker-stack/aem-base/packages  ./aem-base/packages
+                ./scripts-pipeline/dependencies.sh /aem-docker-stack/author/packages  ./author/packages
+                ./scripts-pipeline/dependencies.sh /aem-docker-stack/publish/packages  ./publish/packages
+                '''
+            }
+        }
+
+        stage ('Build Images') {
+            steps {
+                sh '''
+                docker build -t aem-base -t ${CICD_URL}/aem-base:latest ./aem-base
+                docker build -t author -t ${CICD_URL}/aem-author:latest ./author
+                docker build -t publish -t ${CICD_URL}/aem-publish:latest ./publish
+                docker build -t dispatcher -t ${CICD_URL}/aem-dispatcher:latest ./dispatcher
+                '''
+            }
+        }        
+
+        stage ('Push to Docker Registry') {
+            steps {
+                sh '''
+                docker push ${CICD_URL}/aem-base:latest
+                docker push ${CICD_URL}/aem-author:latest
+                docker push ${CICD_URL}/aem-publish:latest
+                docker push ${CICD_URL}/aem-dispatcher:latest
+                '''
+            }
+        }
+
+        stage ('Remove images from local cache') {
+            steps {
+                sh '''
+                docker rmi aem-base ${CICD_URL}/aem-base:latest
+                docker rmi author ${CICD_URL}/aem-author:latest
+                docker rmi publish ${CICD_URL}/aem-publish:latest
+                docker rmi dispatcher ${CICD_URL}/aem-dispatcher:latest
+                '''
+            }
+        }        
+    }
+
+    post {
+            always {            
+                cleanWs()            
+            }
+        }
+}
